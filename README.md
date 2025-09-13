@@ -1,7 +1,7 @@
 ## Accompanying repository of Master's thesis at TU Berlin / Aalborg University. **MIGRATED TO LATEST MUJOCO** - Now compatible with Apple Silicon (M1/M2/M3/M4) MacBooks!
 
 # Deep Reinforcement Learning for robotic pick and place applications using purely visual observations 
-**Author:** Paul Daniel (paudan22@gmail.com)  
+**Orginal Author:** Paul Daniel (paudan22@gmail.com)  
 **Migration:** Updated from mujoco-py to DeepMind MuJoCo + Gymnasium for modern compatibility
 
 ### Traits of this environment: Very large and multi-discrete actionspace, very high sample-cost, visual observations, binary reward.
@@ -79,7 +79,7 @@ pip install -e .
 
 ```bash
 # Clone the repository
-git clone https://github.com/PaulDanielML/MuJoCo_RL_UR5.git
+git clone https://github.com/qdo1010/MuJoCo_RL_UR5.git
 cd MuJoCo_RL_UR5/
 
 # Install dependencies
