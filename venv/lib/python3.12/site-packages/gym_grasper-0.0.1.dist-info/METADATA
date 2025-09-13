@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: gym_grasper
+Version: 0.0.1
+Requires-Dist: gymnasium
+Requires-Dist: mujoco
+Requires-Dist: numpy
+Requires-Dist: simple_pid
+Requires-Dist: termcolor
+Requires-Dist: ikpy
+Requires-Dist: pyquaternion
+Requires-Dist: opencv-python
+Requires-Dist: matplotlib
+Dynamic: requires-dist

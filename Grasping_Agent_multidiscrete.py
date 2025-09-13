@@ -1,6 +1,6 @@
 # Author: Paul Daniel (pdd@mp.aau.dk)
 
-import gym
+import gymnasium as gym
 import torch
 import torchvision.transforms as T
 import torch.nn.functional as F

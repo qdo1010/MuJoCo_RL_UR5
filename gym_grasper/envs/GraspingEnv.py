@@ -9,9 +9,10 @@ import time
 import math
 import cv2 as cv
 import numpy as np
-import mujoco_py
-from gym.envs.mujoco import mujoco_env
-from gym import utils, spaces
+import mujoco
+import mujoco.viewer
+from gymnasium import utils, spaces
+import gymnasium as gym
 from gym_grasper.controller.MujocoController import MJ_Controller
 import traceback
 from pathlib import Path
@@ -22,7 +23,7 @@ from decorators import *
 from pyquaternion import Quaternion
 
 
-class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
+class GraspEnv(gym.Env, utils.EzPickle):
     # def __init__(self, file='/UR5+gripper/UR5gripper_2_finger.xml', image_width=200, image_height=200, show_obs=True, demo=False, render=False):
     # def __init__(self, file='/UR5+gripper/UR5gripper_2_finger.xml', image_width=200, image_height=200, show_obs=True, demo=False, render=False):
     def __init__(
@@ -44,17 +45,28 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         path = os.path.realpath(__file__)
         path = str(Path(path).parent.parent.parent)
         full_path = path + file
-        mujoco_env.MujocoEnv.__init__(self, full_path, 1)
+        # Initialize MuJoCo model and data
+        self.model = mujoco.MjModel.from_xml_path(full_path)
+        self.data = mujoco.MjData(self.model)
+        self.frame_skip = 1
+        self.dt = self.model.opt.timestep * self.frame_skip
+        self.metadata = {'video.frames_per_second': 1.0 / self.dt}
         if render:
-            # render once to initialize a viewer object
-            self.render()
-        self.controller = MJ_Controller(self.model, self.sim, self.viewer)
+            # Initialize the MuJoCo viewer
+            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        else:
+            self.viewer = None
+        self.controller = MJ_Controller(self.model, self.data, self.viewer)
         self.initialized = True
         self.grasp_counter = 0
         self.show_observations = show_obs
         self.demo_mode = demo
         self.TABLE_HEIGHT = 0.91
         self.render = render
+        
+        # Set up action and observation spaces
+        self._set_action_space()
+        self._set_observation_space()
 
     def __repr__(self):
         return f"GraspEnv(obs height={self.IMAGE_HEIGHT}, obs_width={self.IMAGE_WIDTH}, AS={self.action_space_type})"
@@ -95,6 +107,10 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
                 x = action[0] % self.IMAGE_WIDTH
                 y = action[0] // self.IMAGE_WIDTH
                 rotation = action[1]
+
+            # Get current observation if not already set
+            if not hasattr(self, 'current_observation') or self.current_observation is None:
+                self.current_observation = self.get_observation(show=False)
 
             # Depth value for the pixel corresponding to the action
             depth = self.current_observation["depth"][y][x]
@@ -153,7 +169,7 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         self.step_called += 1
 
-        return self.current_observation, reward, done, info
+        return self.current_observation, reward, done, False, info
 
     def _set_action_space(self):
         if self.action_space_type == "discrete":
@@ -165,6 +181,14 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             )
 
         return self.action_space
+    
+    def _set_observation_space(self):
+        # Define observation space for RGB and depth images
+        self.observation_space = spaces.Dict({
+            'rgb': spaces.Box(low=0, high=255, shape=(self.IMAGE_WIDTH, self.IMAGE_HEIGHT, 3), dtype=np.uint8),
+            'depth': spaces.Box(low=0, high=10, shape=(self.IMAGE_WIDTH, self.IMAGE_HEIGHT), dtype=np.float32)
+        })
+        return self.observation_space
 
     def set_grasp_position(self, position):
         """
@@ -187,7 +211,9 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             qpos[index] = open_gripper_values[i]
 
         qvel = np.zeros(len(self.data.qvel))
-        self.set_state(qpos, qvel)
+        self.data.qpos[:] = qpos
+        self.data.qvel[:] = qvel
+        mujoco.mj_forward(self.model, self.data)
         self.data.ctrl[:] = 0
 
     def rotate_wrist_3_joint_to_value(self, degrees):
@@ -421,13 +447,16 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
 
         for i in range(n_objects):
             joint_name = f"free_joint_{i}"
-            q_adr = self.model.get_joint_qpos_addr(joint_name)
-            start, end = q_adr
-            qpos[start] = np.random.uniform(low=-0.25, high=0.25)
-            qpos[start + 1] = np.random.uniform(low=-0.77, high=-0.43)
-            # qpos[start+2] = 1.0
-            qpos[start + 2] = np.random.uniform(low=1.0, high=1.5)
-            qpos[start + 3 : end] = Quaternion.random().unit.elements
+            q_adr = self.model.joint(joint_name).qposadr
+            # For free joints, qposadr is the starting index, and we need 7 values (3 pos + 4 quat)
+            qpos[q_adr] = np.random.uniform(low=-0.25, high=0.25)      # x
+            qpos[q_adr + 1] = np.random.uniform(low=-0.77, high=-0.43)  # y
+            qpos[q_adr + 2] = np.random.uniform(low=1.0, high=1.5)      # z
+            quat_elements = Quaternion.random().unit.elements
+            qpos[q_adr + 3] = quat_elements[0]  # w
+            qpos[q_adr + 4] = quat_elements[1]  # x
+            qpos[q_adr + 5] = quat_elements[2]  # y
+            qpos[q_adr + 6] = quat_elements[3]  # z
 
         #########################################################################
         # Reset for IT4, older versions of IT5
@@ -463,7 +492,10 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         #             qpos[start:end] = [1., 0., 0., 0.]
         #########################################################################
 
-        self.set_state(qpos, qvel)
+        # Set the state in MuJoCo
+        self.data.qpos[:] = qpos
+        self.data.qvel[:] = qvel
+        mujoco.mj_forward(self.model, self.data)
 
         self.controller.set_group_joint_target(
             group="All", target=qpos[self.controller.actuated_joint_ids]
@@ -476,8 +508,22 @@ class GraspEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         # return an observation image
         return self.get_observation(show=self.show_observations)
 
+    def reset(self, seed=None, options=None):
+        """Reset the environment to initial state"""
+        if seed is not None:
+            np.random.seed(seed)
+        
+        # Reset the model state
+        self.reset_model(show_obs=self.show_observations)
+        return self.get_observation(show=self.show_observations), {}
+    
     def close(self):
-        mujoco_env.MujocoEnv.close(self)
+        """Close the environment and cleanup resources"""
+        if hasattr(self, 'viewer') and self.viewer is not None:
+            try:
+                self.viewer.close()
+            except:
+                pass  # Viewer might already be closed
         cv.destroyAllWindows()
 
     def print_info(self):

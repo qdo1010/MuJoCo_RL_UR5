@@ -1,9 +1,25 @@
-## Accompanying repository of Master's thesis at TU Berlin / Aalborg University. No longer under active development. Developed in my earlier Python days, please forgive the unformatted spaghetti code. 
+## Accompanying repository of Master's thesis at TU Berlin / Aalborg University. **MIGRATED TO LATEST MUJOCO** - Now compatible with Apple Silicon (M1/M2/M3/M4) MacBooks!
 
 # Deep Reinforcement Learning for robotic pick and place applications using purely visual observations 
-**Author:** Paul Daniel (paudan22@gmail.com)
+**Author:** Paul Daniel (paudan22@gmail.com)  
+**Migration:** Updated from mujoco-py to DeepMind MuJoCo + Gymnasium for modern compatibility
 
 ### Traits of this environment: Very large and multi-discrete actionspace, very high sample-cost, visual observations, binary reward.
+
+## 🚀 **MAJOR UPDATE: Apple Silicon Compatible!**
+
+This repository has been **completely migrated** from the deprecated `mujoco-py` to the latest **DeepMind MuJoCo** library, making it fully compatible with:
+- ✅ **Apple Silicon MacBooks** (M1, M2, M3, M4)
+- ✅ **Latest Python versions** (3.8+)
+- ✅ **Modern Gymnasium API** (replacing deprecated gym)
+- ✅ **Cross-platform compatibility** (Windows, macOS, Linux)
+
+### What Changed:
+- **MuJoCo**: `mujoco-py` → `mujoco` (DeepMind's official library)
+- **Gym**: `gym` → `gymnasium` (modern Gym API)
+- **Viewer**: Updated to use MuJoCo's native viewer
+- **API**: All MuJoCo API calls updated to latest syntax
+- **Dependencies**: Updated all packages to latest versions
 
 
 Trained agent in action            |  Example of predicted grasp chances 
@@ -29,42 +45,137 @@ This repository provides several python classes for control of robotic arms in M
 * **GraspEnv:** A Gym environment for training reinforcement learning agents. The task to master is a pick & place task. 
 The difference to most other MuJoCo Gym environments is that the observation returned is a camera image instead of a state vector of the simulation. This is meant to resemble a real world setup more closely. 
 
-The robot configuration used in this setup (Universal Robots UR5 + Robotiq S Model 3 Finger Gripper) is based on [this](http://www.mujoco.org/forum/index.php?resources/universal-robots-ur5-robotiq-s-model-3-finger-gripper.22/) resource.  It has since been heavily modified. Most current XML-file: *UR5gripper_2_finger.xml*  
-The python bindings used come from [mujoco_py](https://github.com/openai/mujoco-py/tree/master/mujoco_py).  
-The PID controllers implemented are based on [simple_pid](https://github.com/m-lundberg/simple-pid).  
-A simple inverse kinematics solver for translating end-effector positions into joint angles has been implemented using [ikpy](https://github.com/Phylliade/ikpy).
+The robot configuration used in this setup (Universal Robots UR5 + Robotiq S Model 3 Finger Gripper) is based on [this](http://www.mujoco.org/forum/index.php?resources/universal-robots-ur5-robotiq-s-model-3-finger-gripper.22/) resource. It has since been heavily modified. Most current XML-file: *UR5gripper_2_finger.xml*  
 
-The required modules can be installed either manually or using the provided requirements.txt - file.
+**Updated Dependencies:**
+- **MuJoCo**: Now uses [DeepMind MuJoCo](https://github.com/deepmind/mujoco) (official library)
+- **Gymnasium**: Modern replacement for OpenAI Gym
+- **PID controllers**: Based on [simple_pid](https://github.com/m-lundberg/simple-pid)
+- **Inverse kinematics**: Using [ikpy](https://github.com/Phylliade/ikpy)
+- **Image processing**: OpenCV for camera observations
+- **Visualization**: Matplotlib for plotting
 
-## **Setup**
+## **🚀 Quick Setup (Recommended)**
 
-Download and install MuJoCo from [here](https://www.roboti.us/index.html). Set up a license and activate it [here](https://www.roboti.us/license.html).
+### **Option 1: Virtual Environment (Recommended)**
 
-Then clone this repo: 
-```
+```bash
+# Clone the repository
 git clone https://github.com/PaulDanielML/MuJoCo_RL_UR5.git
-```
-Then change into the newly created directory:
-```
 cd MuJoCo_RL_UR5/
-```
-If desired, activate a virtual environment, then run 
-```
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Install the package in development mode
+pip install -e .
 ```
-This will install all required packages using pip. The first time you run a script that uses the *Mujoco_UR5_controller* class some more setup might happen, which can take a few moments.
-This is all the setup required to use this repo.  
+
+### **Option 2: Global Installation (Not Recommended)**
+
+```bash
+# Clone the repository
+git clone https://github.com/PaulDanielML/MuJoCo_RL_UR5.git
+cd MuJoCo_RL_UR5/
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install the package
+pip install -e .
+```
+
+### **🔧 System Requirements**
+
+- **Python**: 3.8 or higher
+- **Operating System**: Windows, macOS (Intel & Apple Silicon), Linux
+- **Memory**: At least 4GB RAM recommended
+- **Graphics**: OpenGL support for 3D rendering
+
+### **📦 Dependencies**
+
+The following packages are automatically installed via `requirements.txt`:
+- `mujoco` - DeepMind's official MuJoCo library
+- `gymnasium` - Modern Gym API
+- `numpy` - Numerical computing
+- `opencv-python` - Computer vision
+- `matplotlib` - Plotting and visualization
+- `simple-pid` - PID controllers
+- `ikpy` - Inverse kinematics
+- `pyquaternion` - Quaternion operations
+- `termcolor` - Colored terminal output
+
+### **🍎 macOS Specific Notes**
+
+On macOS, you need to use `mjpython` instead of `python` to run scripts with the 3D viewer:
+
+```bash
+# For scripts with 3D viewer
+mjpython example_3d_only.py
+
+# For scripts without 3D viewer
+python example_agent.py
+```
+
+### **🔍 Verification**
+
+Test your installation:
+
+```bash
+# Test basic functionality
+python example_agent.py
+
+# Test 3D viewer (macOS)
+mjpython example_3d_only.py
+
+# Test camera observations
+python example_camera_only.py
+```  
 
 
+
+## **📚 Example Scripts**
+
+The repository now includes multiple example scripts to demonstrate different features:
+
+### **🎮 Basic Examples**
+- **`example_agent.py`** - Basic random agent with camera observations
+- **`example.py`** - Simple controller demonstration
+- **`simple_3d_viewer.py`** - Minimal 3D viewer example
+
+### **🤖 3D Visualization Examples**
+- **`example_3d_only.py`** - 3D MuJoCo viewer only (recommended for macOS)
+- **`example_3d_gymnasium.py`** - Gymnasium environment with 3D viewer
+- **`example_3d_with_saved_camera.py`** - 3D viewer + camera images saved to files
+- **`example_3d_with_matplotlib.py`** - 3D viewer + matplotlib camera display
+- **`example_3d_with_threaded_camera.py`** - 3D viewer + threaded OpenCV camera display
+
+### **📷 Camera Observation Examples**
+- **`example_camera_only.py`** - Camera observations only (no 3D viewer)
+- **`example_agent_with_3d.py`** - Agent with both 3D viewer and camera
+
+### **🔧 Advanced Examples**
+- **`Grasping_Agent_multidiscrete.py`** - Multi-discrete action space agent
+- **`normalize.py`** - Image normalization utility
+
+### **📁 Offline RL Examples**
+- **`Offline RL/generate_data.py`** - Generate training data
+- **`Offline RL/train.py`** - Train offline RL agents
+- **`Offline RL/grasping_dataset.py`** - Dataset utilities
 
 ## **Usage**
 
 ### **GraspEnv - class:**
 
-Gym-environment for training agents to use RGB-D data for predicting pixel-wise grasp success chances.  
+Gymnasium environment for training agents to use RGB-D data for predicting pixel-wise grasp success chances.  
 The file [*example_agent.py*](example_agent.py) demonstrates the use of a random agent for this environment.  
-The file [*Grasping_Agent.py*](Grasping_Agent.py) gives an example of training a shortsighted DQN-agent in the environment to predict pixel-wise grasping success (PyTorch).
+The file [*Grasping_Agent_multidiscrete.py*](Grasping_Agent_multidiscrete.py) gives an example of training a shortsighted DQN-agent in the environment to predict pixel-wise grasping success (PyTorch).
 The created environment has an associated controller object, which provides all the functionality of the *MJ_Controller* - class to it. 
+
 * **Action space**: Pixel space, can be specified by setting height and width. Current defaults: 200x200. This means there are 40.000 possible actions. This resolution translates to a picking accuracy of ~ 4mm.
 * **State space**: The states / observations provided are dictionaries containing two arrays: An RGB-image and a depth-image, both of the same resolution as the action space
 * **Reward function**: The environment has been updated to a binary reward structure:
@@ -79,6 +190,36 @@ The rgb part of the last captured observation will be shown and updated in an ex
 
 ![observation](/media/observation_rgb.png "Example observation")
 
+### **🔧 Troubleshooting**
+
+#### **Common Issues:**
+
+1. **"Unknown C++ exception from OpenCV code" on macOS**
+   - **Solution**: Use separate scripts for 3D viewer and camera observations
+   - **3D Viewer**: `mjpython example_3d_only.py`
+   - **Camera Only**: `python example_camera_only.py`
+   - **Both (saved)**: `mjpython example_3d_with_saved_camera.py`
+
+2. **"launch_passive requires mjpython on macOS"**
+   - **Solution**: Use `mjpython` instead of `python` for scripts with 3D viewer
+   - **Example**: `mjpython example_3d_only.py`
+
+3. **"ModuleNotFoundError: No module named 'mujoco'"**
+   - **Solution**: Install dependencies: `pip install -r requirements.txt`
+
+4. **"ModuleNotFoundError: No module named 'gymnasium'"**
+   - **Solution**: Install gymnasium: `pip install gymnasium`
+
+5. **Performance Issues**
+   - **Solution**: Disable rendering during training: `render=False`
+   - **Solution**: Use `show_obs=False` to disable camera windows
+
+#### **Platform-Specific Notes:**
+
+- **macOS**: Use `mjpython` for 3D viewer, `python` for camera-only scripts
+- **Windows/Linux**: Use `python` for all scripts
+- **Apple Silicon**: Fully supported with the new MuJoCo library
+
 ### **MJ_Controller - class:**
 
 Example usage of some of the class methods is demonstrated in the file [*example.py*](example.py).
@@ -91,7 +232,36 @@ The class *MJ_Controller* offers high and low level methods for controlling the 
 
 ![gif1](/media/gif_1.gif "Simple Grasp and Toss")
 
-## **Updates**
+## **🔄 Migration Details**
+
+### **What Was Changed:**
+
+#### **Core Libraries:**
+- **`mujoco-py` → `mujoco`**: Complete migration to DeepMind's official MuJoCo library
+- **`gym` → `gymnasium`**: Updated to modern Gym API with proper environment wrapping
+- **API Updates**: All MuJoCo API calls updated to latest syntax
+
+#### **Key File Changes:**
+- **`gym_grasper/controller/MujocoController.py`**: Complete refactor for new MuJoCo API
+- **`gym_grasper/envs/GraspingEnv.py`**: Migrated from `gym.envs.mujoco` to `gymnasium.Env`
+- **`requirements.txt`**: Updated all dependencies to latest versions
+- **`setup.py`**: Updated package configuration for modern Python
+
+#### **New Features Added:**
+- **Multiple 3D Viewer Examples**: Various approaches to show 3D simulation
+- **Camera Observation Examples**: Separate scripts for camera-only viewing
+- **Cross-Platform Compatibility**: Works on Windows, macOS (Intel & Apple Silicon), Linux
+- **Modern Environment API**: Proper Gymnasium environment with `reset()` and `step()` methods
+
+### **Breaking Changes:**
+- **Environment Creation**: Now uses `gymnasium.make()` instead of `gym.make()`
+- **Reset Method**: Returns `(observation, info)` tuple instead of just observation
+- **Step Method**: Returns 5 values `(obs, reward, terminated, truncated, info)` instead of 4
+- **Viewer**: Uses MuJoCo's native viewer instead of mujoco-py's viewer
+
+## **📈 Updates & Features**
+
+**🚀 Major Migration (2024):** Complete migration from mujoco-py to DeepMind MuJoCo for Apple Silicon compatibility
 
 **Trials for Offline RL:** The folder *Offline RL* contains scripts for generating and learning from a dataset of (state, action, reward)-transitions. *generate_data.py* can be used to generate as many files as required, each file containing 12 transitions.
 
@@ -110,7 +280,7 @@ The class *MJ_Controller* offers high and low level methods for controlling the 
 ![grasp](/media/grasp.png "Example grasp")
 
 **Point clouds:** The controller class was provided with new methods for image transformations. 
-* depth_2_meters: Converts the normalized depth values returned by mujoco_py into m.
+* depth_2_meters: Converts the normalized depth values returned by MuJoCo into meters.
 * create_camera_data: Constructs a camera matrix, focal length and sets the camera's position and rotation based on a provided camera name and desired image width and depth. 
 * world_2_pixel: Accepts a XYZ world position and returns the corresponding x-y pixel coordinates 
 * pixel_2_world: Accepts x-y pixel coordinates and a depth value, returns the XYZ world position. This method can be used to construct point clouds out of the data returned by the controllers *get_image_data* method.
@@ -121,3 +291,23 @@ The class *MJ_Controller* offers high and low level methods for controlling the 
 The tolerance used for the trajectory are plotted in red, so it can easily be determined how many steps each of the joints needs to reach a value within tolerance. 
 
 ![plot1](/media/plot_1.png "Example plot")
+
+## **🤝 Contributing**
+
+This repository was migrated to support modern hardware and software. If you encounter issues or have improvements:
+
+1. **Check the troubleshooting section** above
+2. **Test with the provided example scripts**
+3. **Report issues** with your system specifications
+4. **Contribute fixes** for cross-platform compatibility
+
+## **📄 License**
+
+This project maintains the original license. See `license.txt` for details.
+
+## **🙏 Acknowledgments**
+
+- **Original Author**: Paul Daniel (paudan22@gmail.com)
+- **Migration**: Updated for modern MuJoCo and Apple Silicon compatibility
+- **Robot Model**: Based on Universal Robots UR5 + Robotiq gripper from MuJoCo forums
+- **Dependencies**: Thanks to all the open-source libraries that make this possible

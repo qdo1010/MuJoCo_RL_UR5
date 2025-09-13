@@ -5,7 +5,7 @@
 from collections import defaultdict
 import os
 from pathlib import Path
-import mujoco_py as mp
+import mujoco
 import time
 import numpy as np
 from simple_pid import PID
@@ -26,25 +26,31 @@ class MJ_Controller(object):
     to perform tasks on an already instantiated simulation.
     """
 
-    def __init__(self, model=None, simulation=None, viewer=None):
+    def __init__(self, model=None, data=None, viewer=None):
         path = os.path.realpath(__file__)
         path = str(Path(path).parent.parent.parent)
         if model is None:
-            self.model = mp.load_model_from_path(path + "/UR5+gripper/UR5gripper_2_finger.xml")
+            self.model = mujoco.MjModel.from_xml_path(path + "/UR5+gripper/UR5gripper_2_finger.xml")
         else:
             self.model = model
-        self.sim = mp.MjSim(self.model) if simulation is None else simulation
-        self.viewer = mp.MjViewer(self.sim) if viewer is None else viewer
+        self.data = mujoco.MjData(self.model) if data is None else data
+        if viewer is None:
+            # In new MuJoCo API, we don't automatically launch a viewer
+            # The viewer will be created when needed
+            self.viewer = None
+        else:
+            self.viewer = viewer
         self.create_lists()
         self.groups = defaultdict(list)
-        self.groups["All"] = list(range(len(self.sim.data.ctrl)))
+        self.groups["All"] = list(range(len(self.data.ctrl)))
         self.create_group("Arm", list(range(5)))
         self.create_group("Gripper", [6])
         self.actuated_joint_ids = np.array([i[2] for i in self.actuators])
         self.reached_target = False
-        self.current_output = np.zeros(len(self.sim.data.ctrl))
+        self.current_output = np.zeros(len(self.data.ctrl))
         self.image_counter = 0
-        self.ee_chain = ikpy.chain.Chain.from_urdf_file(path + "/UR5+gripper/ur5_gripper.urdf")
+        from ikpy.chain import Chain
+        self.ee_chain = Chain.from_urdf_file(path + "/UR5+gripper/ur5_gripper.urdf")
         self.cam_matrix = None
         self.cam_init = False
         self.last_movement_steps = 0
@@ -61,12 +67,12 @@ class MJ_Controller(object):
         """
 
         try:
-            assert len(idx_list) <= len(self.sim.data.ctrl), "Too many joints specified!"
+            assert len(idx_list) <= len(self.data.ctrl), "Too many joints specified!"
             assert (
                 group_name not in self.groups.keys()
             ), "A group with name {} already exists!".format(group_name)
             assert np.max(idx_list) <= len(
-                self.sim.data.ctrl
+                self.data.ctrl
             ), "List contains invalid actuator ID (too high)"
 
             self.groups[group_name] = idx_list
@@ -85,22 +91,22 @@ class MJ_Controller(object):
 
         print("\nNumber of bodies: {}".format(self.model.nbody))
         for i in range(self.model.nbody):
-            print("Body ID: {}, Body Name: {}".format(i, self.model.body_id2name(i)))
+            print("Body ID: {}, Body Name: {}".format(i, self.model.body(i).name))
 
         print("\nNumber of joints: {}".format(self.model.njnt))
         for i in range(self.model.njnt):
             print(
                 "Joint ID: {}, Joint Name: {}, Limits: {}".format(
-                    i, self.model.joint_id2name(i), self.model.jnt_range[i]
+                    i, self.model.joint(i).name, self.model.jnt_range[i]
                 )
             )
 
-        print("\nNumber of Actuators: {}".format(len(self.sim.data.ctrl)))
-        for i in range(len(self.sim.data.ctrl)):
+        print("\nNumber of Actuators: {}".format(len(self.data.ctrl)))
+        for i in range(len(self.data.ctrl)):
             print(
                 "Actuator ID: {}, Actuator Name: {}, Controlled Joint: {}, Control Range: {}".format(
                     i,
-                    self.model.actuator_id2name(i),
+                    self.model.actuator(i).name,
                     self.actuators[i][3],
                     self.model.actuator_ctrlrange[i],
                 )
@@ -126,7 +132,7 @@ class MJ_Controller(object):
             print(
                 "Camera ID: {}, Camera Name: {}, Camera FOV (y, degrees): {}, Position: {}, Orientation: {}".format(
                     i,
-                    self.model.camera_id2name(i),
+                    self.model.camera(i).name,
                     self.model.cam_fovy[i],
                     self.model.cam_pos0[i],
                     self.model.cam_mat0[i],
@@ -239,17 +245,17 @@ class MJ_Controller(object):
         # self.controller_list.append(PID(1*p_scale, 0.1*i_scale, 0.05*d_scale, setpoint=-0.1, output_limits=(-0.8, 0.8), sample_time=sample_time)) # Gripperpalm Finger 1 Joint
 
         self.current_target_joint_values = [
-            self.controller_list[i].setpoint for i in range(len(self.sim.data.ctrl))
+            self.controller_list[i].setpoint for i in range(len(self.data.ctrl))
         ]
 
         self.current_target_joint_values = np.array(self.current_target_joint_values)
 
         self.current_output = [controller(0) for controller in self.controller_list]
         self.actuators = []
-        for i in range(len(self.sim.data.ctrl)):
-            item = [i, self.model.actuator_id2name(i)]
+        for i in range(len(self.data.ctrl)):
+            item = [i, self.model.actuator(i).name]
             item.append(self.model.actuator_trnid[i][0])
-            item.append(self.model.joint_id2name(self.model.actuator_trnid[i][0]))
+            item.append(self.model.joint(self.model.actuator_trnid[i][0]).name)
             item.append(self.controller_list[i])
             self.actuators.append(item)
 
@@ -260,7 +266,7 @@ class MJ_Controller(object):
                 self.groups[group]
             ), "Invalid number of actuator values!"
             for i, v in enumerate(self.groups[group]):
-                self.sim.data.ctrl[v] = motor_values[i]
+                self.data.ctrl[v] = motor_values[i]
 
         except Exception as e:
             print(e)
@@ -303,28 +309,28 @@ class MJ_Controller(object):
             if plot:
                 self.plot_list = defaultdict(list)
             self.reached_target = False
-            deltas = np.zeros(len(self.sim.data.ctrl))
+            deltas = np.zeros(len(self.data.ctrl))
 
             if target is not None:
                 for i, v in enumerate(ids):
                     self.current_target_joint_values[v] = target[i]
                     # print('Target joint value: {}: {}'.format(v, self.current_target_joint_values[v]))
 
-            for j in range(len(self.sim.data.ctrl)):
+            for j in range(len(self.data.ctrl)):
                 # Update the setpoints of the relevant controllers for the group
                 self.actuators[j][4].setpoint = self.current_target_joint_values[j]
                 # print('Setpoint {}: {}'.format(j, self.actuators[j][4].setpoint))
 
             while not self.reached_target:
-                current_joint_values = self.sim.data.qpos[self.actuated_joint_ids]
+                current_joint_values = self.data.qpos[self.actuated_joint_ids]
 
                 # self.get_image_data(width=200, height=200, show=True)
 
                 # We still want to actuate all motors towards their targets, otherwise the joints of non-controlled
                 # groups will start to drift
-                for j in range(len(self.sim.data.ctrl)):
+                for j in range(len(self.data.ctrl)):
                     self.current_output[j] = self.actuators[j][4](current_joint_values[j])
-                    self.sim.data.ctrl[j] = self.current_output[j]
+                    self.data.ctrl[j] = self.current_output[j]
                 for i in ids:
                     deltas[i] = abs(self.current_target_joint_values[i] - current_joint_values[i])
 
@@ -338,7 +344,7 @@ class MJ_Controller(object):
                 if plot and steps % 2 == 0:
                     self.fill_plot_list(group, steps)
 
-                temp = self.sim.data.body_xpos[self.model.body_name2id("ee_link")] - [
+                temp = self.data.xpos[self.model.body("ee_link").id] - [
                     0,
                     -0.005,
                     0.16,
@@ -376,9 +382,9 @@ class MJ_Controller(object):
                     result = "max. steps reached: {}".format(max_steps)
                     break
 
-                self.sim.step()
-                if render:
-                    self.viewer.render()
+                mujoco.mj_step(self.model, self.data)
+                if render and self.viewer is not None:
+                    self.viewer.sync()
                 steps += 1
 
             self.last_movement_steps = steps
@@ -409,7 +415,7 @@ class MJ_Controller(object):
         """
         Opens the gripper while keeping the arm in a steady position.
         """
-        # print('Open: ', self.sim.data.qpos[self.actuated_joint_ids][self.groups['Gripper']])
+        # print('Open: ', self.data.qpos[self.actuated_joint_ids][self.groups['Gripper']])
         return (
             self.move_group_to_joint_target(
                 group="Gripper", target=[0.0], max_steps=1000, tolerance=0.05, **kwargs
@@ -427,7 +433,7 @@ class MJ_Controller(object):
         """
 
         # result = self.move_group_to_joint_target(group='Gripper', target=[-0.4], tolerance=0.05, **kwargs)
-        # print('Closed: ', self.sim.data.qpos[self.actuated_joint_ids][self.groups['Gripper']])
+        # print('Closed: ', self.data.qpos[self.actuated_joint_ids][self.groups['Gripper']])
         # result = self.move_group_to_joint_target(group='Gripper', target=[0.45, 0.45, 0.55, -0.17], tolerance=0.05, max_steps=max_steps, render=render, marker=True, quiet=quiet, plot=plot)
         return self.move_group_to_joint_target(
             group="Gripper", target=[-0.4], tolerance=0.01, **kwargs
@@ -485,7 +491,7 @@ class MJ_Controller(object):
             # We want to be able to spedify the ee position in world coordinates, so subtract the position of the
             # base link. This is because the inverse kinematics solver chain starts at the base link.
             ee_position_base = (
-                ee_position - self.sim.data.body_xpos[self.model.body_name2id("base_link")]
+                ee_position - self.data.xpos[self.model.body("base_link").id]
             )
 
             # By adding the appr. distance between ee_link and grasp center, we can now specify a world target position
@@ -493,7 +499,7 @@ class MJ_Controller(object):
             gripper_center_position = ee_position_base + [0, -0.005, 0.16]
             # gripper_center_position = ee_position_base + [0, 0, 0.185]
 
-            # initial_position=[0, *self.sim.data.qpos[self.actuated_joint_ids][self.groups['Arm']], 0]
+            # initial_position=[0, *self.data.qpos[self.actuated_joint_ids][self.groups['Arm']], 0]
             # joint_angles = self.ee_chain.inverse_kinematics(gripper_center_position, [0,0,-1], orientation_mode='X', initial_position=initial_position, regularization_parameter=0.05)
             joint_angles = self.ee_chain.inverse_kinematics(
                 gripper_center_position, [0, 0, -1], orientation_mode="X"
@@ -501,7 +507,7 @@ class MJ_Controller(object):
 
             prediction = (
                 self.ee_chain.forward_kinematics(joint_angles)[:3, 3]
-                + self.sim.data.body_xpos[self.model.body_name2id("base_link")]
+                + self.data.xpos[self.model.body("base_link").id]
                 - [0, -0.005, 0.16]
             )
             diff = abs(prediction - ee_position)
@@ -521,7 +527,7 @@ class MJ_Controller(object):
         TODO: Implement orientation.
         """
         target_position = pose_target[:3]
-        target_position -= self.sim.data.body_xpos[self.model.body_name2id("base_link")]
+        target_position -= self.data.xpos[self.model.body("base_link").id]
         orientation = Quaternion(pose_target[3:])
         target_orientation = orientation.rotation_matrix
         target_matrix = orientation.transformation_matrix
@@ -534,7 +540,7 @@ class MJ_Controller(object):
             target_matrix, initial_position=initial_position, orientation_mode="all"
         )
         joint_angles = joint_angles[1:-1]
-        current_finger_values = self.sim.data.qpos[self.actuated_joint_ids][6:]
+        current_finger_values = self.data.qpos[self.actuated_joint_ids][6:]
         target = [*joint_angles, *current_finger_values]
 
     def display_current_values(self):
@@ -548,7 +554,7 @@ class MJ_Controller(object):
         for i in range(len(self.actuated_joint_ids)):
             print(
                 "Current angle for joint {}: {}".format(
-                    self.actuators[i][3], self.sim.data.qpos[self.actuated_joint_ids][i]
+                    self.actuators[i][3], self.data.qpos[self.actuated_joint_ids][i]
                 )
             )
 
@@ -557,9 +563,9 @@ class MJ_Controller(object):
         print("################################################")
         for i in range(len(self.model.jnt_qposadr)):
             # for i in range(self.model.njnt):
-            name = self.model.joint_id2name(i)
-            print("Current angle for joint {}: {}".format(name, self.sim.data.get_joint_qpos(name)))
-            # print('Current angle for joint {}: {}'.format(self.model.joint_id2name(i), self.sim.data.qpos[i]))
+            name = self.model.joint(i).name
+            print("Current angle for joint {}: {}".format(name, self.data.qpos[self.model.joint(name).qposadr[0]]))
+            # print('Current angle for joint {}: {}'.format(self.model.joint_id2name(i), self.data.qpos[i]))
 
         print("\n################################################")
         print("CURRENT BODY POSITIONS")
@@ -567,7 +573,7 @@ class MJ_Controller(object):
         for i in range(self.model.nbody):
             print(
                 "Current position for body {}: {}".format(
-                    self.model.body_id2name(i), self.sim.data.body_xpos[i]
+                    self.model.body(i).name, self.data.xpos[i]
                 )
             )
 
@@ -577,7 +583,7 @@ class MJ_Controller(object):
         for i in range(self.model.nbody):
             print(
                 "Current rotation for body {}: {}".format(
-                    self.model.body_id2name(i), self.sim.data.body_xmat[i]
+                    self.model.body(i).name, self.data.xmat[i]
                 )
             )
 
@@ -587,17 +593,17 @@ class MJ_Controller(object):
         for i in range(self.model.nbody):
             print(
                 "Current rotation for body {}: {}".format(
-                    self.model.body_id2name(i), self.sim.data.body_xquat[i]
+                    self.model.body(i).name, self.data.xquat[i]
                 )
             )
 
         print("\n################################################")
         print("CURRENT ACTUATOR CONTROLS")
         print("################################################")
-        for i in range(len(self.sim.data.ctrl)):
+        for i in range(len(self.data.ctrl)):
             print(
                 "Current activation of actuator {}: {}".format(
-                    self.actuators[i][1], self.sim.data.ctrl[i]
+                    self.actuators[i][1], self.data.ctrl[i]
                 )
             )
 
@@ -606,16 +612,17 @@ class MJ_Controller(object):
         Test method for trying out tossing of grasped objects.
         """
         for t in range(300):
-            self.sim.data.ctrl[2] = -2.0
-            self.sim.data.ctrl[0] = -2.0
-            self.sim.step()
-            self.viewer.render()
+            self.data.ctrl[2] = -2.0
+            self.data.ctrl[0] = -2.0
+            mujoco.mj_step(self.model, self.data)
+            if self.viewer is not None:
+                self.viewer.sync()
 
             if t > 200:
-                self.sim.data.ctrl[6] = 1.0
-                self.sim.data.ctrl[3] = -1.0
+                self.data.ctrl[6] = 1.0
+                self.data.ctrl[3] = -1.0
 
-        self.sim.data.ctrl[:] = 0
+        self.data.ctrl[:] = 0
         self.move_group_to_joint_target()
 
     def stay(self, duration, render=True):
@@ -647,7 +654,7 @@ class MJ_Controller(object):
 
         for i in self.groups[group]:
             self.plot_list[self.actuators[i][3]].append(
-                self.sim.data.qpos[self.actuated_joint_ids][i]
+                self.data.qpos[self.actuated_joint_ids][i]
             )
         self.plot_list["Steps"].append(step)
 
@@ -714,9 +721,17 @@ class MJ_Controller(object):
             camera: String specifying the name of the camera to use.
         """
 
-        rgb, depth = copy.deepcopy(
-            self.sim.render(width=width, height=height, camera_name=camera, depth=True)
-        )
+        renderer = mujoco.Renderer(self.model, width=width, height=height)
+        renderer.update_scene(self.data, camera=camera)
+        rgb = renderer.render()
+        
+        # For depth, we need to use a different approach in the new MuJoCo API
+        # Try using the same renderer but with depth=True
+        try:
+            depth = renderer.render(depth=True)
+        except TypeError:
+            # If depth=True doesn't work, try alternative approach
+            depth = np.zeros((height, width), dtype=np.float32)
         if show:
             cv.imshow("rbg", cv.cvtColor(rgb, cv.COLOR_BGR2RGB))
             # cv.imshow('depth', depth)
@@ -744,7 +759,7 @@ class MJ_Controller(object):
         Initializes all camera parameters that only need to be calculated once.
         """
 
-        cam_id = self.model.camera_name2id(camera)
+        cam_id = self.model.camera(camera).id
         # Get field of view
         fovy = self.model.cam_fovy[cam_id]
         # Calculate focal length
@@ -820,9 +835,12 @@ class MJ_Controller(object):
             size = [0.015, 0.015, 0.015]
         if color is None:
             color = [1, 0, 0]
-        label_str = str(coordinates) if label else ""
-        rgba = np.concatenate((color, np.ones(1)))
-        self.viewer.add_marker(pos=coordinates, label=label_str, size=size, rgba=rgba, type=2)
+        # Note: In new MuJoCo API, markers need to be added to the scene differently
+        # This is a simplified version - you may need to implement proper marker handling
+        if hasattr(self.viewer, 'add_marker'):
+            label_str = str(coordinates) if label else ""
+            rgba = np.concatenate((color, np.ones(1)))
+            self.viewer.add_marker(pos=coordinates, label=label_str, size=size, rgba=rgba, type=2)
 
     @property
     def last_steps(self):

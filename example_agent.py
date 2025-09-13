@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 
-import gym
+import gymnasium as gym
 import numpy as np
 from termcolor import colored
 import time
 
-env = gym.make("gym_grasper:Grasper-v0", show_obs=False, render=True)
+env = gym.make("gym_grasper:Grasper-v0", show_obs=True, render=True)
 
 N_EPISODES = 100
 N_STEPS = 100
 
-env.print_info()
+# Access the unwrapped environment to call print_info
+env.unwrapped.print_info()
 
 for episode in range(1, N_EPISODES + 1):
-    obs = env.reset()
+    obs, info = env.reset()
     for step in range(N_STEPS):
         print("#################################################################")
         print(
@@ -23,7 +24,8 @@ for episode in range(1, N_EPISODES + 1):
         action = env.action_space.sample()
         # action = [100,100] # multidiscrete
         # action = 20000 #discrete
-        observation, reward, done, _ = env.step(action, record_grasps=True)
+        observation, reward, terminated, truncated, info = env.unwrapped.step(action, record_grasps=True)
+        done = terminated or truncated
         # observation, reward, done, _ = env.step(action, record_grasps=True, render=True)
 
 env.close()

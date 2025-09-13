@@ -1,0 +1,9 @@
+gymnasium
+mujoco
+numpy
+simple_pid
+termcolor
+ikpy
+pyquaternion
+opencv-python
+matplotlib

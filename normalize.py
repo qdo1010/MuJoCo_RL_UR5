@@ -5,7 +5,7 @@ Executing this file will save the mean and std values for all four channels, sam
 These values can then be loaded to normalize the observations of the RL agent.
 """
 
-import gym
+import gymnasium as gym
 import numpy as np
 from termcolor import colored
 import time

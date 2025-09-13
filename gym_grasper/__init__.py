@@ -1,4 +1,4 @@
-from gym.envs.registration import register
+from gymnasium.envs.registration import register
 from gym_grasper.version import VERSION as __version__
 
 register(
